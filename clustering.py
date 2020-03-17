@@ -144,20 +144,20 @@ similarity_matrix = calculate_similarity_matrix(label_graph)
 # print(label_graph[5])
 # print(labels[5])
 
-for max_labels in [3,4,5,6,7,8]:
-    print("max labels: {0}".format(max_labels))
-    local_search_jaccard_triangulation(label_graph, similarity_matrix, max_labels)
-
-for max_labels in [3,4,5,6,7,8]:
-    labels = np.load('final_labels_{0}.npy'.format(max_labels))
-    (precision, recall) = precision_and_recall(labels, label_graph)
-    print("max labels = {0} agv_precision = {1:.3f} avg_recall = {2:.3f}".format(max_labels, precision, recall))
+# for max_labels in [3,4,5,6,7,8]:
+#     print("max labels: {0}".format(max_labels))
+#     local_search_jaccard_triangulation(label_graph, similarity_matrix, max_labels)
 
 # for max_labels in [3,4,5,6,7,8]:
-#     labels = greedy_label_assignment(label_graph, similarity_matrix, max_labels)
-#     total_cost = C_occ(label_graph, labels, similarity_matrix)
+#     labels = np.load('final_labels_{0}.npy'.format(max_labels))
 #     (precision, recall) = precision_and_recall(labels, label_graph)
-#     print("max labels = {0} cost = {1} agv_precision = {2:.3f} avg_recall = {3:.3f}".format(max_labels, total_cost, precision, recall))
+#     print("max labels = {0} agv_precision = {1:.3f} avg_recall = {2:.3f}".format(max_labels, precision, recall))
+
+for max_labels in [3,4,5,6,7,8]:
+    labels = greedy_label_assignment(label_graph, similarity_matrix, max_labels)
+    total_cost = C_occ(label_graph, labels, similarity_matrix)
+    (precision, recall) = precision_and_recall(labels, label_graph)
+    print("max labels = {0} cost = {1} agv_precision = {2:.3f} avg_recall = {3:.3f}".format(max_labels, total_cost, precision, recall))
 
 
 # a = np.zeros([10, 5])
