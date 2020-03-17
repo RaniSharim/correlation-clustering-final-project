@@ -14,16 +14,17 @@ def loadData():
 
 def calculate_similarity_matrix(label_graph):
     similarity_matrix = 1 - pairwise_distances(label_graph, metric='jaccard')
-    # np.save('similarity.npy', similarity_matrix)
     return similarity_matrix
-
-# def load_similarity_matrix():
-#     return np.load('similarity.npy')
 
 def C_occ(label_graph , lables, similarity_matrix):
     label_similarity = 1 - pairwise_distances(lables, metric='jaccard')
     diff = np.absolute(similarity_matrix - label_similarity)
     return 0.5 * np.sum(diff)
+
+def C_vp(label_graph , lables, similarity_matrix, v_idx):
+    label_similarity = 1 - pairwise_distances(lables, metric='jaccard')
+    diff_v = np.absolute(similarity_matrix[v_idx] - label_similarity[v_idx])
+    return np.sum(diff_v)
 
 def find_new_label_set(label_graph, labels, similarity_matrix, max_labels, v_idx):
     # current_labels = labels[v_idx]
@@ -41,23 +42,14 @@ def find_new_label_set(label_graph, labels, similarity_matrix, max_labels, v_idx
     A[:,1:] = (1 + z_t)
     # get top indices
     (X, _) = nnls(A, b)
-    
-    # print(b)
-    # print(A)
-    
-    # print()
-    # print(X)
-    # exit()
-    
+    # we don't want t, only the x_i
     X = X[1:]
     top_indices = (np.argsort(X))
 
-    min_cost = C_occ(label_graph, labels, similarity_matrix)
+    min_cost = C_vp(label_graph, labels, similarity_matrix, v_idx)
     v_labels = np.copy(labels[v_idx])
-    # print(v_labels)
-    # print("#######")
-    # print(min_cost)
-    # test all possile configurations
+
+    # test all possible configurations
     for p in range(1, max_labels+1):
         # set top p X's to true, otherwise false
         selected_indices = top_indices[-p]
@@ -66,7 +58,7 @@ def find_new_label_set(label_graph, labels, similarity_matrix, max_labels, v_idx
         labels[v_idx] = new_labels
 
         # check which gives the best cost
-        cost = C_occ(label_graph, labels, similarity_matrix)
+        cost = C_vp(label_graph, labels, similarity_matrix, v_idx)
         if cost < min_cost:
             # print(cost)
             min_cost = cost
@@ -93,10 +85,8 @@ def local_search_jaccard_triangulation(label_graph, similarity_matrix, max_label
         for i in range(0, number_of_vertices):
             if (i % 100 == 0):
                 print(i, end = ' ', flush=True)
-            # print("#######")
-            # print(labels[i])
             labels[i] = find_new_label_set(label_graph, labels, similarity_matrix, max_labels, i)
-            # print(labels[i])
+
         total_cost = C_occ(label_graph, labels, similarity_matrix)
         print()
         print(total_cost)
@@ -105,31 +95,64 @@ def local_search_jaccard_triangulation(label_graph, similarity_matrix, max_label
     np.save('final_labels_{0}.npy'.format(max_labels), labels)
 
 
-def precision_and_recall(labels, similarity_matrix):
+def precision_and_recall(labels, label_graph):
     # find the size of the intersection
-    intersection_sizes = np.sum(np.logocal_and(labels, similarity_matrix), axis = 1)
+    intersection_sizes = np.sum(np.logical_and(labels, label_graph), axis = 1)
     # find the size of the prediction and truth per node
-    prediction_sizes = np.sum(labels, axis = 1)
-    truth_sizes = np.sum(labels, axis = 1)
+    prediction_sizes = np.sum(labels, axis = 1, dtype = float)
+    truth_sizes = np.sum(label_graph, axis = 1, dtype = float)
+
+    # print(truth_sizes)
+    # print(intersection_sizes)
+    # print(prediction_sizes)
 
     # calculate precision and recall per node
-    precision = intersection_sizes / prediction_sizes
-    recall = intersection_sizes / truth_sizes
+    precision = np.divide(intersection_sizes, prediction_sizes, where=prediction_sizes!=0)
+    recall = np.divide(intersection_sizes, truth_sizes, where=truth_sizes!=0)
 
     # return avarage
     return (np.average(precision), np.average(recall))
 
-# label_graph = loadData()
-# similarity_matrix = calculate_similarity_matrix(label_graph)
+def greedy_label_assignment(label_graph, similarity_matrix, max_labels):
+    # calculate cardinalities of labels and sort high to low
+    sorted_label_cardinalities = np.flip(np.argsort(np.sum(label_graph, axis = 0)))
+    labels = np.zeros_like(label_graph, dtype = bool)
+    for vertex_idx in range(0, label_graph.shape[0]):
+        numer_of_assigned_labels = 0
+        for label_idx in sorted_label_cardinalities:
+            # if the vertex has the given label add it to the vertex
+            if (label_graph[vertex_idx, label_idx]):
+                labels[vertex_idx, label_idx] = True
+                numer_of_assigned_labels = numer_of_assigned_labels + 1
 
-# # for max_labels in [3,4,5,6,7,8]:
-# #     print("max labels: {0}".format(max_labels))
-# #     local_search_jaccard_triangulation(label_graph, similarity_matrix, max_labels)
+            if numer_of_assigned_labels == max_labels:
+                break
+
+    return labels
+
+
+
+    
+
+
+label_graph = loadData()
+similarity_matrix = calculate_similarity_matrix(label_graph)
+local_search_jaccard_triangulation(label_graph, similarity_matrix, 5)
+
+# for max_labels in [3,4,5,6,7,8]:
+#     print("max labels: {0}".format(max_labels))
+#     local_search_jaccard_triangulation(label_graph, similarity_matrix, max_labels)
 
 # for max_labels in [3,4,5,6,7,8]:
 #     labels = np.load('final_labels_{0}.npy'.format(max_labels))
-#     (precision, recall) = precision_and_recall(labels, similarity_matrix)
-#     print("max labels = {0} agv_precision = {1:.3f} avg_recall = {2:.3f}", max_labels, precision, recall)
+#     (precision, recall) = precision_and_recall(labels, label_graph)
+#     print("max labels = {0} agv_precision = {1:.3f} avg_recall = {2:.3f}".format(max_labels, precision, recall))
+
+# for max_labels in [3,4,5,6,7,8]:
+#     labels = greedy_label_assignment(label_graph, similarity_matrix, max_labels)
+#     total_cost = C_occ(label_graph, labels, similarity_matrix)
+#     (precision, recall) = precision_and_recall(labels, label_graph)
+#     print("max labels = {0} cost = {1} agv_precision = {2:.3f} avg_recall = {3:.3f}".format(max_labels, total_cost, precision, recall))
 
 
 # a = np.zeros([10, 5])
