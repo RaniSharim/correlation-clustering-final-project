@@ -18,12 +18,12 @@ def calculate_similarity_matrix(label_graph):
 
 def C_occ(label_graph , lables, similarity_matrix):
     label_similarity = 1 - pairwise_distances(lables, metric='jaccard')
-    diff = np.absolute(similarity_matrix - label_similarity)
+    diff = np.absolute(label_similarity - similarity_matrix)
     return 0.5 * np.sum(diff)
 
 def C_vp(label_graph , lables, similarity_matrix, v_idx):
     label_similarity = 1 - pairwise_distances(lables, metric='jaccard')
-    diff_v = np.absolute(similarity_matrix[v_idx] - label_similarity[v_idx])
+    diff_v = np.absolute(label_similarity[v_idx] - similarity_matrix[v_idx])
     return np.sum(diff_v)
 
 def find_new_label_set(label_graph, labels, similarity_matrix, max_labels, v_idx):
@@ -32,19 +32,20 @@ def find_new_label_set(label_graph, labels, similarity_matrix, max_labels, v_idx
     A = np.zeros([labels.shape[0], labels.shape[1] + 1])
    
     # setup b = z*|S_j|
-    s_sizes = np.sum(labels, axis=1)
+    s_sizes = np.sum(label_graph, axis=1)
     b = z * s_sizes
 
     # setup the constrains for nnls
     z_t = z.reshape([z.shape[0] ,1])
     # seems to be a mixup in the article about the signs here...
+    # setup -zt + [sum((1+z)x_i) for i in s_j]
     A[:,0] = -z
-    A[:,1:] = (1 + z_t)
+    A[:,1:] = (1 + z_t) * label_graph
     # get top indices
     (X, _) = nnls(A, b)
     # we don't want t, only the x_i
     X = X[1:]
-    top_indices = (np.argsort(X))
+    top_indices = np.flip(np.argsort(X))
 
     min_cost = C_vp(label_graph, labels, similarity_matrix, v_idx)
     v_labels = np.copy(labels[v_idx])
@@ -52,7 +53,7 @@ def find_new_label_set(label_graph, labels, similarity_matrix, max_labels, v_idx
     # test all possible configurations
     for p in range(1, max_labels+1):
         # set top p X's to true, otherwise false
-        selected_indices = top_indices[-p]
+        selected_indices = top_indices[:p]
         new_labels = np.zeros(labels.shape[1], dtype=bool)
         np.put(new_labels, selected_indices, True)
         labels[v_idx] = new_labels
@@ -137,16 +138,20 @@ def greedy_label_assignment(label_graph, similarity_matrix, max_labels):
 
 label_graph = loadData()
 similarity_matrix = calculate_similarity_matrix(label_graph)
-local_search_jaccard_triangulation(label_graph, similarity_matrix, 5)
+# local_search_jaccard_triangulation(label_graph, similarity_matrix, 5)
 
-# for max_labels in [3,4,5,6,7,8]:
-#     print("max labels: {0}".format(max_labels))
-#     local_search_jaccard_triangulation(label_graph, similarity_matrix, max_labels)
+# labels = np.load('final_labels_5.npy')
+# print(label_graph[5])
+# print(labels[5])
 
-# for max_labels in [3,4,5,6,7,8]:
-#     labels = np.load('final_labels_{0}.npy'.format(max_labels))
-#     (precision, recall) = precision_and_recall(labels, label_graph)
-#     print("max labels = {0} agv_precision = {1:.3f} avg_recall = {2:.3f}".format(max_labels, precision, recall))
+for max_labels in [3,4,5,6,7,8]:
+    print("max labels: {0}".format(max_labels))
+    local_search_jaccard_triangulation(label_graph, similarity_matrix, max_labels)
+
+for max_labels in [3,4,5,6,7,8]:
+    labels = np.load('final_labels_{0}.npy'.format(max_labels))
+    (precision, recall) = precision_and_recall(labels, label_graph)
+    print("max labels = {0} agv_precision = {1:.3f} avg_recall = {2:.3f}".format(max_labels, precision, recall))
 
 # for max_labels in [3,4,5,6,7,8]:
 #     labels = greedy_label_assignment(label_graph, similarity_matrix, max_labels)
